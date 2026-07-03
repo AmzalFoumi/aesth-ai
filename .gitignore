@@ -40,6 +40,11 @@ next-env.d.ts
 
 .env
 
+# SQLite database (generated — rebuild with `npm run payload -- migrate` + `npm run seed`)
+.db
+.db-shm
+.db-wal
+
 /media
 
 # Playwright
