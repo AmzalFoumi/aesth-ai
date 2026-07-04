@@ -16,6 +16,7 @@
     "seed:prompt": "cross-env NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" tsx src/seed/seedPrompt.ts",
     "ai:smoke": "cross-env NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" tsx src/lib/ai-chat/providers/smokeTest.ts",
     "ai:smoke:tool": "cross-env NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" tsx src/lib/ai-chat/tools/smokeTest.ts",
+    "ai:smoke:chat": "cross-env NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" tsx src/lib/ai-chat/smokeTest.ts",
     "start": "cross-env NODE_OPTIONS=--no-deprecation next start",
     "test": "pnpm run test:int && pnpm run test:e2e",
     "test:e2e": "cross-env NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" playwright test --config=playwright.config.ts",
