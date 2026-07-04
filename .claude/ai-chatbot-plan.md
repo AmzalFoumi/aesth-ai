@@ -1,5 +1,11 @@
 # AI Chatbot for Payload — Phase 1: Database-Querying (RAG-ready, model/DB/platform agnostic)
 
+> **Status: ✅ DONE (Phase 1).** All steps (0–7) implemented and verified live: chat
+> collections, model-agnostic provider resolver (Gemini Flash default), `queryProducts`
+> tool + Payload adapter, guardrail pipeline (8 passing tests), `runChat` orchestrator,
+> `POST /chat` endpoint, and the frontend `ChatWidget`. Module docs: `src/lib/ai-chat/README.md`.
+> RAG (§7) remains **documentation-only** — the next phase.
+
 ## Context
 
 **Why we're building this.** We want a reusable chatbot we can drop into any client site we build. For the current demo it must answer questions about our beauty-product catalog by **querying the database** and letting an LLM phrase the answer from real rows — full RAG (embeddings/semantic search) comes later. The hard requirement is that this be built *without spaghetti*: model-agnostic (swap LLMs via env var), DB-agnostic (we just moved to Mongo Atlas and it must not matter to the chatbot code), and platform-agnostic (the core logic can be lifted into a shared npm package and reused across client projects). This plan gets database-querying working first while leaving clean seams for RAG.
