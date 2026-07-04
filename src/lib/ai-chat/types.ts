@@ -3,6 +3,17 @@
 
 export type ChatRole = 'user' | 'assistant' | 'tool' | 'system'
 
+/**
+ * Result of a guardrail rule or pipeline.
+ * - allowed=false  -> stop; `reason` explains why (may be shown to the user).
+ * - sanitized      -> a cleaned version of the text (e.g. PII redacted, truncated).
+ */
+export interface GuardrailResult {
+  allowed: boolean
+  reason?: string
+  sanitized?: string
+}
+
 /** Arguments the LLM supplies when it calls the queryProducts tool. */
 export interface ProductQueryArgs {
   search?: string
