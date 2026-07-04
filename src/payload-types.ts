@@ -70,6 +70,9 @@ export interface Config {
     users: User;
     media: Media;
     products: Product;
+    'prompt-templates': PromptTemplate;
+    'chat-sessions': ChatSession;
+    'chat-messages': ChatMessage;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -80,6 +83,9 @@ export interface Config {
     users: UsersSelect<false> | UsersSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     products: ProductsSelect<false> | ProductsSelect<true>;
+    'prompt-templates': PromptTemplatesSelect<false> | PromptTemplatesSelect<true>;
+    'chat-sessions': ChatSessionsSelect<false> | ChatSessionsSelect<true>;
+    'chat-messages': ChatMessagesSelect<false> | ChatMessagesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -192,6 +198,138 @@ export interface Product {
   createdAt: string;
 }
 /**
+ * Content-managed system prompts for the chatbot. Looked up by "key".
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "prompt-templates".
+ */
+export interface PromptTemplate {
+  id: string;
+  /**
+   * Stable identifier the code looks up, e.g. "product-assistant".
+   */
+  key: string;
+  /**
+   * Human-friendly name shown in the admin list.
+   */
+  label: string;
+  /**
+   * The system prompt. Supports {{placeholders}} substituted at runtime (e.g. {{now}}).
+   */
+  systemPrompt: string;
+  /**
+   * Bump when you meaningfully change the prompt.
+   */
+  version?: number | null;
+  /**
+   * Only active templates are used at runtime.
+   */
+  isActive?: boolean | null;
+  /**
+   * Optional changelog / rationale for non-engineers.
+   */
+  notes?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * One row per chatbot conversation. Created server-side by the chat endpoint.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chat-sessions".
+ */
+export interface ChatSession {
+  id: string;
+  /**
+   * Opaque client-generated UUID (localStorage). Not a Payload user.
+   */
+  sessionKey: string;
+  /**
+   * Prompt template this session is pinned to, so later edits do not rewrite history.
+   */
+  promptTemplateKey?: string | null;
+  /**
+   * A guardrail may flip this to "blocked" after repeated abuse.
+   */
+  status?: ('active' | 'archived' | 'blocked') | null;
+  /**
+   * Free-form. A clientId/tenantId here is the seam for multi-site deployments.
+   */
+  metadata?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * Individual chat turns. One row per user/assistant/tool message.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chat-messages".
+ */
+export interface ChatMessage {
+  id: string;
+  session: string | ChatSession;
+  role: 'user' | 'assistant' | 'tool' | 'system';
+  content?: string | null;
+  /**
+   * Which tool the model called and with what arguments.
+   */
+  toolCalls?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Rows returned to the model — traces answers back to real data.
+   */
+  toolResults?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Guardrail outcome for this turn (audit trail).
+   */
+  guardrailFlags?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Token counts from the model call (cost tracking).
+   */
+  tokenUsage?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -226,6 +364,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'products';
         value: string | Product;
+      } | null)
+    | ({
+        relationTo: 'prompt-templates';
+        value: string | PromptTemplate;
+      } | null)
+    | ({
+        relationTo: 'chat-sessions';
+        value: string | ChatSession;
+      } | null)
+    | ({
+        relationTo: 'chat-messages';
+        value: string | ChatMessage;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -333,6 +483,47 @@ export interface ProductsSelect<T extends boolean = true> {
   totalRepurchaseNoCount?: T;
   totalRepurchaseYesCount?: T;
   totalInWishlist?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "prompt-templates_select".
+ */
+export interface PromptTemplatesSelect<T extends boolean = true> {
+  key?: T;
+  label?: T;
+  systemPrompt?: T;
+  version?: T;
+  isActive?: T;
+  notes?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chat-sessions_select".
+ */
+export interface ChatSessionsSelect<T extends boolean = true> {
+  sessionKey?: T;
+  promptTemplateKey?: T;
+  status?: T;
+  metadata?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "chat-messages_select".
+ */
+export interface ChatMessagesSelect<T extends boolean = true> {
+  session?: T;
+  role?: T;
+  content?: T;
+  toolCalls?: T;
+  toolResults?: T;
+  guardrailFlags?: T;
+  tokenUsage?: T;
   updatedAt?: T;
   createdAt?: T;
 }
