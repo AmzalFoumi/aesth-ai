@@ -58,6 +58,17 @@ const seed = async () => {
         }
 
         try {
+          const existing = await payload.find({
+            collection: 'products',
+            where: { productId: { equals: productId } },
+            limit: 1,
+          })
+
+          if (existing.totalDocs > 0) {
+            skipped++
+            return
+          }
+
           await payload.create({
             collection: 'products',
             data: {

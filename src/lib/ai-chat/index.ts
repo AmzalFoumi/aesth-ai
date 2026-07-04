@@ -1,0 +1,10 @@
+// Public surface of the ai-chat core — the boundary a future npm package exposes.
+// Host apps import from here and supply a ChatDataAdapter implementation.
+
+export { runChat } from './orchestrator'
+export type { RunChatInput, RunChatResult } from './orchestrator'
+export type { ChatDataAdapter } from './data/ChatDataAdapter'
+export { createPayloadChatAdapter } from './data/payloadChatAdapter'
+export { resolveModel } from './providers/resolveModel'
+export { buildTools } from './tools'
+export * from './types'
