@@ -350,6 +350,54 @@ the tool), `seed.ts` (mirror for the backfill), `payloadChatAdapter.ts` (add met
   - document embed backfill, mode switching, and message-level mode logging in ai-chat README
   ```
 
+### Step 7 — Portability guide (ships WITH the copied AI code)
+The AI core is meant to be copied into the **separate prod-DB project** (Payload/Luxskin) and any
+future client project. When it's copied, the receiving AI agent (or dev) needs to know — without
+re-deriving it — **which files stay byte-for-byte identical and which are host-specific and MUST be
+rewritten against that project's data/CMS/DB shape**. That knowledge currently lives only in this
+plan and this conversation; Step 7 makes it a **portable artifact that travels with the code**.
+- Add `src/lib/ai-chat/PORTING.md` (lives *inside* the folder you copy, so it can never get separated
+  from the code it describes). Structure:
+  - **What this is** — one paragraph: a decoupled, model-/DB-/CMS-agnostic chat+RAG core behind two
+    seams (`ChatDataAdapter` for storage, `resolveModel`/`resolveEmbeddingModel` for providers).
+  - **✅ Copy as-is (portable core)** — table of files that carry no host knowledge and should NOT be
+    edited on copy: `orchestrator.ts`, `tools/*` (tool *logic*), `guardrails/*`, `retrieval/mode.ts`,
+    `vector/VectorStore.ts`, `vector/chunkText.ts` (until you upgrade the splitter), `providers/*`,
+    `types.ts`, `index.ts`, `data/ChatDataAdapter.ts` (the interface). For each: one line on why it's
+    safe to move.
+  - **✏️ Rewrite per project (host glue)** — table of files that MUST change, WHAT to change, and the
+    contract they must still satisfy:
+    - `data/payloadChatAdapter.ts` — the ONLY payload/DB-importing file. Keep it if the target is also
+      Payload+Mongo Atlas; otherwise write a new adapter implementing the SAME `ChatDataAdapter`
+      interface against the target store (note the `$vectorSearch`/native-collection bits + the
+      `VECTOR_INDEX_NAME` assumption).
+    - `src/seed/embed.ts` — **most host-specific file.** Change: which collections it reads, one
+      `buildBlob()` per `sourceType` (product/treatment/post/…), a **Lexical rich-text → plain-text
+      extractor**, handling **drafts/versions** (embed only published), and the `metadata` facets.
+      Contract it must still meet: emit `EmbeddingItem[]` and call `adapter.upsertEmbeddings`; stay
+      resume-safe + idempotent; respect the free-tier quota.
+    - `src/collections/chat/*` + `payload.config.ts` registration — recreate these collections
+      (or map to the target CMS's equivalents); confirm the `Embeddings` shape + Atlas index exist.
+    - `src/app/chat/route.ts` + the widget — rewire to the target framework's routing/UI.
+    - `.env` / `.env.example` — set `AI_PROVIDER`, `EMBEDDING_*`, `RETRIEVAL_MODE`, `VECTOR_INDEX_NAME`,
+      `DATABASE_URL` for the new project.
+  - **One-time infra checklist** — Atlas `$vectorSearch` index (dims/cosine/`sourceType` filter),
+    embedding dims must match the index, run order `seed` → `embed`, free-tier quota math.
+  - **"Adding a new source type" recipe** — the generalized `sourceType`/`chunkIndex` design means
+    it's: extend the `SourceType` union, add a `buildBlob` for it in `embed.ts`, re-run `embed`. No
+    schema/interface change.
+- Cross-link: add a one-line pointer from `src/lib/ai-chat/README.md` to `PORTING.md`.
+- **Verify:** `PORTING.md` exists inside `src/lib/ai-chat/`; every file in the map is classified
+  copy-as-is vs rewrite; the classification matches what Steps 1–6 actually built.
+- 🛑 **GATE 7**
+  ```
+  docs: add PORTING.md portability guide for copying the AI core
+
+  - classify every ai-chat file: copy-as-is (portable core) vs rewrite-per-project (host glue)
+  - document adapter/seed/collection/route changes and the contracts each must still satisfy
+  - add Lexical + drafts/versions caveats for the CMS prod DB, and an "add a source type" recipe
+  ```
+
 ---
 
 ## Verification (end-to-end)
