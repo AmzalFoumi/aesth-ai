@@ -6,5 +6,10 @@ export type { RunChatInput, RunChatResult } from './orchestrator'
 export type { ChatDataAdapter } from './data/ChatDataAdapter'
 export { createPayloadChatAdapter } from './data/payloadChatAdapter'
 export { resolveModel } from './providers/resolveModel'
+export {
+  resolveEmbeddingModel,
+  embeddingDims,
+  embeddingModelId,
+} from './providers/resolveEmbeddingModel'
 export { buildTools } from './tools'
 export * from './types'

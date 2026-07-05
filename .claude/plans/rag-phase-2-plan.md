@@ -282,12 +282,21 @@ the tool), `seed.ts` (mirror for the backfill), `payloadChatAdapter.ts` (add met
   each with `sourceType:'product'`, `sourceId:productId`, `chunkIndex`, and `metadata` (brand,
   category, rating, url) for filtering. `embedMany` (model `gemini-embedding-001`) in batches sized to
   the cap found in Step 1 (respect Gemini RPM — chunk + small delay), then `adapter.upsertEmbeddings(...)`.
-  **Resume-safe:** skip sources that already have a current-model vector, so a large prod copy can be
-  embedded across multiple runs/days without redoing work or blowing the daily request cap. Idempotent
+  **Resume-safe:** skip sources that already have a current-model vector, so the catalog can be
+  embedded across multiple runs/days without redoing work or blowing the daily cap. Idempotent
   by `(sourceType, sourceId, chunkIndex)`. Fail loudly if the source collection is empty.
-  - *Sizing note:* ~7,500 products ÷ ~100 per request ≈ **~75 requests** (~1 min). When blogs/long
-    text land, chunking multiplies chunk count (still a one-time free-tier job); resume-safe design
-    covers a much larger corpus gracefully.
+  - **⚠️ Quota reality (CONFIRMED, corrects the earlier estimate):** `@ai-sdk/google` `embedMany`
+    bundles ≤100 texts per `batchEmbedContents` HTTP call, BUT the free-tier quota
+    `EmbedContentRequestsPerMinutePerUserPerProjectPerModel = 100` counts **each embedded item**, not
+    each HTTP call (empirically: `embedMany(250)` → HTTP 429). Free-tier embedding limits are
+    **100/min · 30K TPM · 1,000/day**.
+  - **Consequence:** ~7,500 products **cannot** be embedded in a single free-tier day (1,000/day cap),
+    and even the daily 1,000 must be throttled to ≤100/min.
+  - **Backfill design:** throttle to ≤~90/min (batches of ≤90 with a ~60s pause), and honor an
+    `EMBED_LIMIT` env (default e.g. 900/run to stay under the daily cap). Resume-safe skip means each
+    day's run tops up where the last left off. For the demo, embed a **representative subset**
+    (e.g. 500–900 products, or one category) — finishes in one free day, plenty to show RAG vs DB A/B.
+    Full 7,500 = spread over ~8 days, or use a paid/prod key for a one-shot backfill.
 - Add `"embed"` script to `package.json`. (Blog/page source types are added here later by reading
   those collections into the same pipeline — no schema change.)
 - **Verify:** `npm run embed` reports "embedded N / N"; `embeddings` count (sourceType=product) ==
