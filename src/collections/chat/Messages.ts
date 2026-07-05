@@ -56,6 +56,17 @@ export const Messages: CollectionConfig = {
       admin: { description: 'Guardrail outcome for this turn (audit trail).' },
     },
     {
+      name: 'retrievalMode',
+      type: 'select',
+      index: true,
+      options: [
+        { label: 'DB (queryProducts)', value: 'db' },
+        { label: 'RAG (searchKnowledgeBase)', value: 'rag' },
+        { label: 'Both', value: 'both' },
+      ],
+      admin: { description: 'Which retrieval arm produced this turn — the A/B label.' },
+    },
+    {
       name: 'tokenUsage',
       type: 'json',
       admin: { description: 'Token counts from the model call (cost tracking).' },

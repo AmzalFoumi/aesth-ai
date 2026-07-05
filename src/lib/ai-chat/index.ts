@@ -12,6 +12,7 @@ export {
   embeddingModelId,
 } from './providers/resolveEmbeddingModel'
 export { buildTools } from './tools'
+export { resolveMode } from './retrieval/mode'
 export type { VectorStore } from './vector/VectorStore'
 export { chunkText } from './vector/chunkText'
 export * from './types'

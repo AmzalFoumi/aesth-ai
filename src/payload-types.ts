@@ -317,6 +317,10 @@ export interface ChatMessage {
     | boolean
     | null;
   /**
+   * Which retrieval arm produced this turn — the A/B label.
+   */
+  retrievalMode?: ('db' | 'rag' | 'both') | null;
+  /**
    * Token counts from the model call (cost tracking).
    */
   tokenUsage?:
@@ -588,6 +592,7 @@ export interface ChatMessagesSelect<T extends boolean = true> {
   toolCalls?: T;
   toolResults?: T;
   guardrailFlags?: T;
+  retrievalMode?: T;
   tokenUsage?: T;
   updatedAt?: T;
   createdAt?: T;

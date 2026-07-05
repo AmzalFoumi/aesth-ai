@@ -64,6 +64,8 @@ export interface NewMessage {
   toolResults?: JsonValue
   guardrailFlags?: JsonValue
   tokenUsage?: JsonValue
+  /** Which retrieval arm produced this turn (db|rag|both) — for A/B auditability. */
+  retrievalMode?: RetrievalMode
 }
 
 // ---------------------------------------------------------------------------

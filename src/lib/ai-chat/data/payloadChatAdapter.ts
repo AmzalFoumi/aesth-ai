@@ -92,6 +92,7 @@ export const createPayloadChatAdapter = (payload: Payload): ChatDataAdapter => (
         toolResults: msg.toolResults ?? undefined,
         guardrailFlags: msg.guardrailFlags ?? undefined,
         tokenUsage: msg.tokenUsage ?? undefined,
+        retrievalMode: msg.retrievalMode ?? undefined,
       },
     })
   },
