@@ -73,6 +73,7 @@ export interface Config {
     'prompt-templates': PromptTemplate;
     'chat-sessions': ChatSession;
     'chat-messages': ChatMessage;
+    embeddings: Embedding;
     'payload-kv': PayloadKv;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -86,6 +87,7 @@ export interface Config {
     'prompt-templates': PromptTemplatesSelect<false> | PromptTemplatesSelect<true>;
     'chat-sessions': ChatSessionsSelect<false> | ChatSessionsSelect<true>;
     'chat-messages': ChatMessagesSelect<false> | ChatMessagesSelect<true>;
+    embeddings: EmbeddingsSelect<false> | EmbeddingsSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -330,6 +332,65 @@ export interface ChatMessage {
   createdAt: string;
 }
 /**
+ * RAG vector store. One row per embedded text chunk. Written by `npm run embed`; queried via Atlas $vectorSearch.
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "embeddings".
+ */
+export interface Embedding {
+  id: string;
+  /**
+   * Which kind of source document this vector came from.
+   */
+  sourceType: 'product' | 'treatment' | 'post' | 'testimonial' | 'concern' | 'category' | 'author' | 'page';
+  /**
+   * Id of the parent document (e.g. productId) this chunk belongs to.
+   */
+  sourceId: string;
+  /**
+   * 0 for single-chunk docs; 0,1,2… when long text is split into passages.
+   */
+  chunkIndex: number;
+  /**
+   * The exact text that was embedded (kept for traceability + re-embedding).
+   */
+  text: string;
+  /**
+   * The embedding vector (array of floats). Indexed by Atlas $vectorSearch.
+   */
+  vector:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Filter facets (brand, category, rating, url, title…). NOT embedded.
+   */
+  metadata?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Embedding model id (e.g. gemini-embedding-001) — lets us re-embed on change.
+   */
+  model: string;
+  /**
+   * Vector dimensionality — must match the Atlas index (e.g. 768).
+   */
+  dims: number;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -376,6 +437,10 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'chat-messages';
         value: string | ChatMessage;
+      } | null)
+    | ({
+        relationTo: 'embeddings';
+        value: string | Embedding;
       } | null);
   globalSlug?: string | null;
   user: {
@@ -524,6 +589,22 @@ export interface ChatMessagesSelect<T extends boolean = true> {
   toolResults?: T;
   guardrailFlags?: T;
   tokenUsage?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "embeddings_select".
+ */
+export interface EmbeddingsSelect<T extends boolean = true> {
+  sourceType?: T;
+  sourceId?: T;
+  chunkIndex?: T;
+  text?: T;
+  vector?: T;
+  metadata?: T;
+  model?: T;
+  dims?: T;
   updatedAt?: T;
   createdAt?: T;
 }
