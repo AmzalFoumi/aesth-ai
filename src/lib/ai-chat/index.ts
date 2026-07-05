@@ -12,4 +12,5 @@ export {
   embeddingModelId,
 } from './providers/resolveEmbeddingModel'
 export { buildTools } from './tools'
+export type { VectorStore } from './vector/VectorStore'
 export * from './types'

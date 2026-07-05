@@ -5,6 +5,7 @@ import type {
   ProductSummary,
   SessionRecord,
 } from '../types'
+import type { VectorStore } from '../vector/VectorStore'
 
 /**
  * The decoupling seam. The ai-chat core depends ONLY on this interface, never on
@@ -15,7 +16,7 @@ import type {
  * This is what makes the chatbot DB-agnostic and platform-agnostic: the Mongo (or
  * any future DB) question lives entirely inside the implementation of this interface.
  */
-export interface ChatDataAdapter {
+export interface ChatDataAdapter extends VectorStore {
   getOrCreateSession(sessionKey: string, templateKey: string): Promise<SessionRecord>
   getRecentMessages(sessionId: string, limit: number): Promise<MessageRecord[]>
   saveMessage(msg: NewMessage): Promise<void>
@@ -23,4 +24,5 @@ export interface ChatDataAdapter {
     key: string,
   ): Promise<{ systemPrompt: string; version: number } | null>
   queryProducts(args: ProductQueryArgs): Promise<ProductSummary[]>
+  // + upsertEmbeddings() and similaritySearch() inherited from VectorStore.
 }
