@@ -381,15 +381,24 @@ the tool), `seed.ts` (mirror for the backfill), `payloadChatAdapter.ts` (add met
 - **Access:** only the **DB copy** is available (no Luxskin codebase) → use **Approach B**
   (read-only source adapter from this repo via raw Mongo, `SOURCE_DATABASE_URI`), NOT repointing the
   app's `DATABASE_URL`.
-- **Sequencing decision:** **build Steps 2–6 on the dummy products first** (prove the RAG pipeline
-  end-to-end), then swap the source to Luxskin as a follow-up. So the source swap is deferred:
+- **Sequencing decision (updated):** the Luxskin prod-DB testing will happen in a **SEPARATE new
+  Payload project** the user will wire up — **not** in this repo. This repo stays on the **dummy
+  products** database and its job now is to **build the AI code end-to-end and keep it maximally
+  model-/DB-/CMS-agnostic**, so it can be **copied** into the Luxskin project with minimal changes.
+  Therefore there is **no in-repo source swap** (the earlier "Step 7 swap" is replaced by the
+  portability contract below). `src/seed/inspectSource.ts` remains as a handy read-only explorer.
 
-### Step 7 (deferred, follow-up) — Swap RAG/query source to the Luxskin prod copy (Approach B)
-- Add a read-only source seam driven by `SOURCE_DATABASE_URI` (groundwork already in
-  `src/seed/inspectSource.ts`): extract clean text per content doc — direct fields for flat
-  collections; **resolve latest published `_versions` + flatten Lexical** for `treatments`/`posts`.
-- Emit into the same generalized `embeddings` store with `sourceType ∈ {treatment, post, testimonial,
-  concern, category, author, page}`. No RAG-core changes (that's the whole point of the `sourceType`
-  design).
-- Generalize the DB-query arm alongside RAG so both A/B arms read the same real corpus.
-- Deferred until the products pipeline is proven; captured here so the design stays aimed at it.
+### Portability contract (what makes the copy-paste to the new project work)
+- **Copies untouched:** everything in `src/lib/ai-chat/` that imports no `payload`/DB/SDK —
+  orchestrator, guardrails, prompts, `retrieval/mode.ts`, `providers/resolveModel.ts` +
+  `resolveEmbeddingModel.ts`, `vector/VectorStore.ts` + `chunkText.ts`, `tools/index.ts`, `types.ts`,
+  `index.ts`.
+- **Re-authored per project (the intentional seam):** the `ChatDataAdapter` implementation
+  (`payloadChatAdapter.ts`), the chat + `embeddings` collection configs, the domain-shaped query tool
+  and embedding text-blob (products vs. treatments/Lexical), and env/route/widget/Atlas-index config.
+- **Hard rule that keeps the promise true:** NOTHING imports `payload`, a DB driver, or a provider SDK
+  outside the adapter files and the two resolvers. Enforce on every step; `tsc` catches most leaks.
+- In the Luxskin project specifically, the adapter/ingestion must **resolve published `_versions` +
+  flatten Lexical** for `treatments`/`posts`; flat collections (`testimonials`, `concerns`, categories,
+  `authors`) map directly. Emit into the generalized `embeddings` store with `sourceType ∈ {treatment,
+  post, testimonial, concern, category, author, page}` — no RAG-core changes needed.
