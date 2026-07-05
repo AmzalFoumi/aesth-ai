@@ -7,14 +7,18 @@ import React, { useEffect, useRef, useState } from 'react'
 // it drop into any client frontend unchanged.
 
 type Msg = { role: 'user' | 'assistant'; text: string }
+type Mode = 'db' | 'rag' | 'both'
 
 const SESSION_STORAGE_KEY = 'aesth-chat-session'
+const MODES: Mode[] = ['db', 'rag', 'both']
 
 export const ChatWidget: React.FC = () => {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<Msg[]>([])
   const [loading, setLoading] = useState(false)
+  // A/B retrieval arm. Sent as `mode` so we can flip db vs rag vs both live.
+  const [mode, setMode] = useState<Mode>('db')
   const sessionKey = useRef<string>('')
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -41,7 +45,7 @@ export const ChatWidget: React.FC = () => {
       const res = await fetch('/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sessionKey: sessionKey.current, message }),
+        body: JSON.stringify({ sessionKey: sessionKey.current, message, mode }),
       })
       const data = await res.json()
       const text = data.text ?? data.error ?? 'Something went wrong.'
@@ -66,6 +70,18 @@ export const ChatWidget: React.FC = () => {
             <button style={styles.close} onClick={() => setOpen(false)} aria-label="Close">
               ×
             </button>
+          </div>
+          <div style={styles.modeRow}>
+            <span style={styles.modeLabel}>Retrieval</span>
+            {MODES.map((m) => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                style={{ ...styles.modeBtn, ...(mode === m ? styles.modeBtnActive : {}) }}
+              >
+                {m}
+              </button>
+            ))}
           </div>
           <div ref={scrollRef} style={styles.messages}>
             {messages.length === 0 && (
@@ -122,6 +138,16 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between', alignItems: 'center', fontWeight: 600, fontSize: 14,
   },
   close: { background: 'transparent', border: 'none', color: '#fff', fontSize: 20, cursor: 'pointer', lineHeight: 1 },
+  modeRow: {
+    display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
+    borderBottom: '1px solid #eee', background: '#fafafa',
+  },
+  modeLabel: { fontSize: 11, color: '#888', marginRight: 2 },
+  modeBtn: {
+    background: '#fff', color: '#555', border: '1px solid #ddd', borderRadius: 6,
+    padding: '3px 8px', fontSize: 11, cursor: 'pointer', textTransform: 'uppercase',
+  },
+  modeBtnActive: { background: '#111', color: '#fff', borderColor: '#111' },
   messages: { flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 },
   hint: { color: '#888', fontSize: 13, textAlign: 'center', marginTop: 20 },
   bubble: { padding: '8px 12px', borderRadius: 12, fontSize: 14, lineHeight: 1.4, whiteSpace: 'pre-wrap', maxWidth: '85%' },
