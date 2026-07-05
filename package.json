@@ -14,6 +14,7 @@
     "payload": "cross-env NODE_OPTIONS=--no-deprecation payload",
     "seed": "cross-env NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" tsx src/seed/seed.ts",
     "seed:prompt": "cross-env NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" tsx src/seed/seedPrompt.ts",
+    "inspect:source": "cross-env NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" tsx src/seed/inspectSource.ts",
     "ai:smoke": "cross-env NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" tsx src/lib/ai-chat/providers/smokeTest.ts",
     "ai:smoke:embed": "cross-env NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" tsx src/lib/ai-chat/providers/embedSmokeTest.ts",
     "ai:smoke:tool": "cross-env NODE_OPTIONS=\"--no-deprecation --import=tsx/esm\" tsx src/lib/ai-chat/tools/smokeTest.ts",

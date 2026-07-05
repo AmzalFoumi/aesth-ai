@@ -367,3 +367,29 @@ the tool), `seed.ts` (mirror for the backfill), `payloadChatAdapter.ts` (add met
 - **Arm control:** `RETRIEVAL_MODE` env default + per-request `mode` override.
 - **Backfill:** standalone resume-safe `npm run embed` with `gemini-embedding-001` (free tier), one embedding per product now.
 - **Chunking:** deferred behind the `chunkText()` seam; turned on for long text when the prod DB lands.
+
+## Prod-copy DB findings + source decision (added after inspecting the mentor's DB)
+- The prod copy is a **full Payload CMS site** (Luxskin clinic; DB `luxskin_chatbot_staging`), NOT the
+  products catalog. Content collections: `treatments` (7), `posts` (6), `testimonials` (3),
+  `concerns` (5), `treatment-categories`/`categories`, `authors`, `video-testimonials`, `pages`,
+  plus a Payload `searches` index. ~40 content docs total → **RAG-ideal and far under the 1,000/day
+  embedding cap** (the quota worry only applied to the 7,500 dummy products).
+- **Gotcha:** `treatments`/`posts` (the richest text) use Payload **drafts + versions + Lexical
+  rich-text** — real body lives in `_treatments_versions` / `_posts_versions`. Reading them correctly
+  means resolving published versions and flattening Lexical (Payload does this automatically; raw
+  Mongo does not). Flat collections (`testimonials`, `concerns`, categories, `authors`) are easy.
+- **Access:** only the **DB copy** is available (no Luxskin codebase) → use **Approach B**
+  (read-only source adapter from this repo via raw Mongo, `SOURCE_DATABASE_URI`), NOT repointing the
+  app's `DATABASE_URL`.
+- **Sequencing decision:** **build Steps 2–6 on the dummy products first** (prove the RAG pipeline
+  end-to-end), then swap the source to Luxskin as a follow-up. So the source swap is deferred:
+
+### Step 7 (deferred, follow-up) — Swap RAG/query source to the Luxskin prod copy (Approach B)
+- Add a read-only source seam driven by `SOURCE_DATABASE_URI` (groundwork already in
+  `src/seed/inspectSource.ts`): extract clean text per content doc — direct fields for flat
+  collections; **resolve latest published `_versions` + flatten Lexical** for `treatments`/`posts`.
+- Emit into the same generalized `embeddings` store with `sourceType ∈ {treatment, post, testimonial,
+  concern, category, author, page}`. No RAG-core changes (that's the whole point of the `sourceType`
+  design).
+- Generalize the DB-query arm alongside RAG so both A/B arms read the same real corpus.
+- Deferred until the products pipeline is proven; captured here so the design stays aimed at it.
