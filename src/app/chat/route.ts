@@ -6,7 +6,7 @@ import { runChat, createPayloadChatAdapter } from '@/lib/ai-chat'
 // own /api/[...slug] catch-all. All chat logic lives in src/lib/ai-chat; this
 // handler only adapts HTTP <-> runChat().
 export const POST = async (request: Request) => {
-  let body: { sessionKey?: unknown; message?: unknown }
+  let body: { sessionKey?: unknown; message?: unknown; mode?: unknown; shapes?: unknown }
   try {
     body = await request.json()
   } catch {
@@ -15,6 +15,11 @@ export const POST = async (request: Request) => {
 
   const sessionKey = typeof body.sessionKey === 'string' ? body.sessionKey.trim() : ''
   const message = typeof body.message === 'string' ? body.message.trim() : ''
+  // Optional A/B override; runChat/resolveMode validates and falls back to env/default.
+  const mode = typeof body.mode === 'string' ? body.mode.trim() : undefined
+  // Optional per-request shape allowlist (e.g. "timeline" or "plain,productList");
+  // runChat/resolveShapes validates and falls back to OUTPUT_SHAPES env/default.
+  const shapes = typeof body.shapes === 'string' ? body.shapes.trim() : undefined
 
   if (!sessionKey || !message) {
     return Response.json(
@@ -27,7 +32,7 @@ export const POST = async (request: Request) => {
     const payload = await getPayload({ config: configPromise })
     const adapter = createPayloadChatAdapter(payload)
     const result = await runChat(
-      { sessionKey, message, templateKey: 'product-assistant' },
+      { sessionKey, message, templateKey: 'product-assistant', mode, shapes },
       adapter,
     )
     return Response.json(result)

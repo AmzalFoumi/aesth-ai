@@ -1,12 +1,35 @@
 import type { Payload, Where } from 'payload'
 import type { ChatDataAdapter } from './ChatDataAdapter'
 import type {
+  EmbeddingItem,
   MessageRecord,
   NewMessage,
   ProductQueryArgs,
   ProductSummary,
+  ScoredChunk,
   SessionRecord,
+  SimilarityFilter,
+  SourceType,
 } from '../types'
+
+// Name of the Atlas Search index created once in the Atlas UI on the `embeddings`
+// collection (768 dims, cosine, with `sourceType` declared as a filter field).
+const VECTOR_INDEX = process.env.VECTOR_INDEX_NAME ?? 'vector_index'
+
+/**
+ * The native MongoDB driver collection behind Payload's mongoose adapter. We drop
+ * to the raw collection ONLY for the two vector operations that Payload's Local API
+ * can't express: the `$vectorSearch` aggregation stage (Atlas-specific) and the
+ * batched delete+insert upsert. Everything else still goes through payload.*.
+ */
+const mongoCollection = (payload: Payload, name: string) => {
+  const connection = (payload.db as unknown as { connection?: { collection: (n: string) => any } })
+    .connection
+  if (!connection) {
+    throw new Error('Vector ops require the MongoDB (mongoose) adapter — no connection found.')
+  }
+  return connection.collection(name)
+}
 
 /**
  * The ONLY file in the ai-chat core allowed to import `payload`. Everything else
@@ -69,6 +92,9 @@ export const createPayloadChatAdapter = (payload: Payload): ChatDataAdapter => (
         toolResults: msg.toolResults ?? undefined,
         guardrailFlags: msg.guardrailFlags ?? undefined,
         tokenUsage: msg.tokenUsage ?? undefined,
+        retrievalMode: msg.retrievalMode ?? undefined,
+        outputShape: msg.outputShape ?? undefined,
+        structuredOutput: msg.structuredOutput ?? undefined,
       },
     })
   },
@@ -137,6 +163,87 @@ export const createPayloadChatAdapter = (payload: Payload): ChatDataAdapter => (
         averageRating: d.averageRating ?? undefined,
         totalReviews: d.totalReviews ?? undefined,
         url: d.url ?? undefined,
+      }),
+    )
+  },
+
+  // --- VectorStore half (RAG) -------------------------------------------------
+
+  async upsertEmbeddings(items: EmbeddingItem[]) {
+    if (items.length === 0) return
+    const col = mongoCollection(payload, 'embeddings')
+    const now = new Date()
+
+    // Idempotent by (sourceType, sourceId, chunkIndex): replace the row for each
+    // key so re-running the backfill refreshes vectors without duplicating.
+    const ops = items.map((it) => ({
+      updateOne: {
+        filter: {
+          sourceType: it.sourceType,
+          sourceId: it.sourceId,
+          chunkIndex: it.chunkIndex,
+        },
+        update: {
+          $set: {
+            sourceType: it.sourceType,
+            sourceId: it.sourceId,
+            chunkIndex: it.chunkIndex,
+            text: it.text,
+            vector: it.vector,
+            metadata: it.metadata ?? null,
+            model: it.model,
+            dims: it.dims,
+            updatedAt: now,
+          },
+          $setOnInsert: { createdAt: now },
+        },
+        upsert: true,
+      },
+    }))
+
+    await col.bulkWrite(ops, { ordered: false })
+  },
+
+  async similaritySearch(vector: number[], limit: number, filter?: SimilarityFilter) {
+    const col = mongoCollection(payload, 'embeddings')
+
+    const vectorSearch: Record<string, unknown> = {
+      index: VECTOR_INDEX,
+      path: 'vector',
+      queryVector: vector,
+      // numCandidates: Atlas guidance is ~10-20x the requested limit for good recall.
+      numCandidates: Math.max(limit * 15, 100),
+      limit,
+    }
+    if (filter?.sourceType) {
+      vectorSearch.filter = { sourceType: { $eq: filter.sourceType } }
+    }
+
+    const docs = await col
+      .aggregate([
+        { $vectorSearch: vectorSearch },
+        {
+          $project: {
+            _id: 0,
+            sourceType: 1,
+            sourceId: 1,
+            chunkIndex: 1,
+            text: 1,
+            metadata: 1,
+            score: { $meta: 'vectorSearchScore' },
+          },
+        },
+      ])
+      .toArray()
+
+    return docs.map(
+      (d: any): ScoredChunk => ({
+        sourceType: d.sourceType as SourceType,
+        sourceId: String(d.sourceId),
+        chunkIndex: Number(d.chunkIndex ?? 0),
+        text: d.text ?? '',
+        metadata: d.metadata ?? undefined,
+        score: Number(d.score ?? 0),
       }),
     )
   },

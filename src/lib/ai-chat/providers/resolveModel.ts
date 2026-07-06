@@ -25,10 +25,8 @@ export const resolveModel = (): LanguageModel => {
     case 'openai':
       return openai(modelId ?? 'gpt-4o-mini')
     case 'google':
-      return google(modelId ?? 'gemini-2.0-flash')
+      return google(modelId ?? 'gemini-3.1-flash-lite')
     default:
-      throw new Error(
-        `Unknown AI_PROVIDER "${provider}". Use one of: google, anthropic, openai.`,
-      )
+      throw new Error(`Unknown AI_PROVIDER "${provider}". Use one of: google, anthropic, openai.`)
   }
 }

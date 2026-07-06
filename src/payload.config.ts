@@ -8,7 +8,7 @@ import sharp from 'sharp'
 import { Users } from './collections/Users'
 import { Media } from './collections/Media'
 import { Products } from './collections/Products'
-import { PromptTemplates, ChatSessions, Messages } from './collections/chat'
+import { PromptTemplates, ChatSessions, Messages, Embeddings } from './collections/chat'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -20,7 +20,7 @@ export default buildConfig({
       baseDir: path.resolve(dirname),
     },
   },
-  collections: [Users, Media, Products, PromptTemplates, ChatSessions, Messages],
+  collections: [Users, Media, Products, PromptTemplates, ChatSessions, Messages, Embeddings],
   editor: lexicalEditor(),
   secret: process.env.PAYLOAD_SECRET || '',
   typescript: {
