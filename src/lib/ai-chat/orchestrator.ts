@@ -115,6 +115,24 @@ export const runChat = async (
   let usage: unknown = undefined
   let modelOutput: ChatOutput | null = null
 
+  // A plain (no `output`) generateText run — same tools/context, but the answer
+  // comes back in `result.text`. Used as the fallback whenever the structured run
+  // yields nothing usable, so we never surface an empty answer.
+  const runPlain = async () => {
+    const result = await generateText({
+      model: resolveModel(),
+      system,
+      messages,
+      tools,
+      stopWhen: stepCountIs(4),
+    })
+    text = result.text
+    toolCalls = result.steps.flatMap((s) => s.toolCalls ?? [])
+    toolResults = result.steps.flatMap((s) => s.toolResults ?? [])
+    usage = result.usage
+    modelOutput = null
+  }
+
   try {
     const result = await generateText({
       model: resolveModel(),
@@ -134,21 +152,17 @@ export const runChat = async (
     } catch {
       modelOutput = null
     }
+
+    // With `output` set, the SDK routes the answer into the object channel, leaving
+    // result.text empty. If the model produced no valid object AND no text, we have
+    // nothing to show — re-run plain so the tool-grounded answer lands in .text.
+    if (!modelOutput?.spokenAnswer?.trim() && !text.trim()) {
+      await runPlain()
+    }
   } catch {
-    // Structured generation failed (e.g. schema mismatch). Re-run WITHOUT the output
-    // constraint so we still get a grounded plain-text answer from the tool loop.
-    const result = await generateText({
-      model: resolveModel(),
-      system,
-      messages,
-      tools,
-      stopWhen: stepCountIs(4),
-    })
-    text = result.text
-    toolCalls = result.steps.flatMap((s) => s.toolCalls ?? [])
-    toolResults = result.steps.flatMap((s) => s.toolResults ?? [])
-    usage = result.usage
-    modelOutput = null
+    // Structured generation threw (e.g. schema mismatch). Re-run plain so we still
+    // get a grounded answer from the tool loop instead of failing the request.
+    await runPlain()
   }
 
   // Every shape carries spokenAnswer; if the model produced no usable shape, fall
