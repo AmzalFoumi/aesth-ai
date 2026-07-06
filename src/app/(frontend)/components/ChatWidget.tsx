@@ -6,11 +6,37 @@ import React, { useEffect, useRef, useState } from 'react'
 // a sessionKey and POSTs to /chat. That HTTP-contract-only dependency is what lets
 // it drop into any client frontend unchanged.
 
-type Msg = { role: 'user' | 'assistant'; text: string }
+// Mirrors the backend ChatOutput union (src/lib/ai-chat/types.ts). Kept inline so
+// the widget stays HTTP-contract-only and drops into any frontend unchanged.
+type ChatOutput =
+  | { kind: 'plain'; spokenAnswer: string }
+  | {
+      kind: 'timeline'
+      spokenAnswer: string
+      title: string
+      steps: { order: number; title: string; detail: string; productRefs?: string[] }[]
+    }
+  | {
+      kind: 'productList'
+      spokenAnswer: string
+      intro?: string
+      products: { name: string; brand?: string; priceRange?: string; rating?: number; url?: string; why?: string }[]
+    }
+  | {
+      kind: 'comparison'
+      spokenAnswer: string
+      items: string[]
+      rows: { feature: string; values: string[] }[]
+    }
+
+type Msg = { role: 'user' | 'assistant'; text: string; output?: ChatOutput }
 type Mode = 'db' | 'rag' | 'both'
+// 'auto' = let the model choose (no shapes override sent). Others force that shape (+plain).
+type ShapeChoice = 'auto' | 'timeline' | 'productList' | 'comparison' | 'plain'
 
 const SESSION_STORAGE_KEY = 'aesth-chat-session'
 const MODES: Mode[] = ['db', 'rag', 'both']
+const SHAPES: ShapeChoice[] = ['auto', 'timeline', 'productList', 'comparison', 'plain']
 
 export const ChatWidget: React.FC = () => {
   const [open, setOpen] = useState(false)
@@ -19,6 +45,8 @@ export const ChatWidget: React.FC = () => {
   const [loading, setLoading] = useState(false)
   // A/B retrieval arm. Sent as `mode` so we can flip db vs rag vs both live.
   const [mode, setMode] = useState<Mode>('db')
+  // Which answer shape to force. 'auto' sends no override (model self-selects).
+  const [shape, setShape] = useState<ShapeChoice>('auto')
   const sessionKey = useRef<string>('')
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -45,11 +73,18 @@ export const ChatWidget: React.FC = () => {
       const res = await fetch('/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sessionKey: sessionKey.current, message, mode }),
+        // Only send `shapes` when forcing a shape; 'auto' lets the model self-select.
+        body: JSON.stringify({
+          sessionKey: sessionKey.current,
+          message,
+          mode,
+          ...(shape === 'auto' ? {} : { shapes: shape }),
+        }),
       })
       const data = await res.json()
       const text = data.text ?? data.error ?? 'Something went wrong.'
-      setMessages((m) => [...m, { role: 'assistant', text }])
+      const output = (data.output ?? undefined) as ChatOutput | undefined
+      setMessages((m) => [...m, { role: 'assistant', text, output }])
     } catch {
       setMessages((m) => [...m, { role: 'assistant', text: 'Network error. Please try again.' }])
     } finally {
@@ -83,6 +118,18 @@ export const ChatWidget: React.FC = () => {
               </button>
             ))}
           </div>
+          <div style={styles.modeRow}>
+            <span style={styles.modeLabel}>Shape</span>
+            {SHAPES.map((s) => (
+              <button
+                key={s}
+                onClick={() => setShape(s)}
+                style={{ ...styles.modeBtn, ...(shape === s ? styles.modeBtnActive : {}) }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
           <div ref={scrollRef} style={styles.messages}>
             {messages.length === 0 && (
               <div style={styles.hint}>Ask me about our beauty products.</div>
@@ -95,7 +142,11 @@ export const ChatWidget: React.FC = () => {
                   ...(m.role === 'user' ? styles.user : styles.assistant),
                 }}
               >
-                {m.text}
+                {m.role === 'assistant' && m.output ? (
+                  <StructuredAnswer output={m.output} fallback={m.text} />
+                ) : (
+                  m.text
+                )}
               </div>
             ))}
             {loading && <div style={{ ...styles.bubble, ...styles.assistant }}>…</div>}
@@ -120,6 +171,90 @@ export const ChatWidget: React.FC = () => {
       </button>
     </div>
   )
+}
+
+// Renders the model's self-selected shape as a real component. Falls back to plain
+// text for `plain`/unknown kinds so text-only turns keep working.
+const StructuredAnswer: React.FC<{ output: ChatOutput; fallback: string }> = ({ output, fallback }) => {
+  switch (output.kind) {
+    case 'timeline':
+      return (
+        <div>
+          {output.title && <div style={styles.shapeTitle}>{output.title}</div>}
+          <ol style={styles.timeline}>
+            {[...output.steps]
+              .sort((a, b) => a.order - b.order)
+              .map((s, i) => (
+                <li key={i} style={styles.step}>
+                  <span style={styles.stepTitle}>{s.title}</span>
+                  {s.detail && <div style={styles.stepDetail}>{s.detail}</div>}
+                  {s.productRefs && s.productRefs.length > 0 && (
+                    <div style={styles.refs}>{s.productRefs.join(' · ')}</div>
+                  )}
+                </li>
+              ))}
+          </ol>
+        </div>
+      )
+    case 'productList':
+      return (
+        <div>
+          {output.intro && <div style={styles.stepDetail}>{output.intro}</div>}
+          <div style={styles.cards}>
+            {output.products.map((p, i) => (
+              <div key={i} style={styles.card}>
+                <div style={styles.cardName}>
+                  {p.url ? (
+                    <a href={p.url} target="_blank" rel="noreferrer" style={styles.cardLink}>
+                      {p.name}
+                    </a>
+                  ) : (
+                    p.name
+                  )}
+                </div>
+                <div style={styles.cardMeta}>
+                  {[p.brand, p.priceRange, p.rating != null ? `★ ${p.rating}` : undefined]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </div>
+                {p.why && <div style={styles.stepDetail}>{p.why}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    case 'comparison':
+      return (
+        <div style={styles.tableWrap}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}></th>
+                {output.items.map((it, i) => (
+                  <th key={i} style={styles.th}>
+                    {it}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {output.rows.map((r, i) => (
+                <tr key={i}>
+                  <td style={{ ...styles.td, ...styles.tdFeature }}>{r.feature}</td>
+                  {r.values.map((v, j) => (
+                    <td key={j} style={styles.td}>
+                      {v}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
+    default:
+      return <>{output.spokenAnswer || fallback}</>
+  }
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -156,4 +291,21 @@ const styles: Record<string, React.CSSProperties> = {
   inputRow: { display: 'flex', borderTop: '1px solid #eee', padding: 8, gap: 8 },
   input: { flex: 1, border: '1px solid #ddd', borderRadius: 8, padding: '8px 10px', fontSize: 14, outline: 'none' },
   send: { background: '#111', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 14 },
+  // --- structured-shape render styles ---
+  shapeTitle: { fontWeight: 600, marginBottom: 6 },
+  timeline: { margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 },
+  step: { fontSize: 13 },
+  stepTitle: { fontWeight: 600 },
+  stepDetail: { color: '#444', fontSize: 13, marginTop: 2 },
+  refs: { color: '#888', fontSize: 11, marginTop: 2 },
+  cards: { display: 'flex', flexDirection: 'column', gap: 6 },
+  card: { border: '1px solid #e5e5e5', borderRadius: 8, padding: '6px 8px', background: '#fff' },
+  cardName: { fontWeight: 600, fontSize: 13 },
+  cardLink: { color: '#111', textDecoration: 'underline' },
+  cardMeta: { color: '#888', fontSize: 11, marginTop: 1 },
+  tableWrap: { overflowX: 'auto' },
+  table: { borderCollapse: 'collapse', fontSize: 12, width: '100%' },
+  th: { border: '1px solid #e5e5e5', padding: '4px 6px', background: '#f7f7f7', textAlign: 'left', fontWeight: 600 },
+  td: { border: '1px solid #e5e5e5', padding: '4px 6px', verticalAlign: 'top' },
+  tdFeature: { fontWeight: 600, background: '#fafafa' },
 }
