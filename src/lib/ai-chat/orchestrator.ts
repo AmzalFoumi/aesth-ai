@@ -1,9 +1,11 @@
 import { generateText, stepCountIs, type ModelMessage } from 'ai'
 import type { ChatDataAdapter } from './data/ChatDataAdapter'
-import type { JsonValue, MessageRecord, RetrievalMode } from './types'
+import type { ChatOutput, JsonValue, MessageRecord, OutputShape, RetrievalMode } from './types'
 import { resolveModel } from './providers/resolveModel'
 import { buildTools } from './tools'
 import { resolveMode } from './retrieval/mode'
+import { resolveShapes } from './output/mode'
+import { buildOutput } from './output/buildOutput'
 import { renderTemplate } from './prompts/render'
 import { runInputGuardrails, runOutputGuardrails } from './guardrails'
 
@@ -16,6 +18,8 @@ export interface RunChatInput {
   templateKey: string
   /** Optional per-request A/B override: db | rag | both. Falls back to RETRIEVAL_MODE env. */
   mode?: string
+  /** Optional per-request override of the allowed answer shapes. Falls back to OUTPUT_SHAPES env. */
+  shapes?: string
 }
 
 export interface RunChatResult {
@@ -24,6 +28,21 @@ export interface RunChatResult {
   blocked: boolean
   /** The retrieval arm that actually ran (after resolving override/env/default). */
   mode: RetrievalMode
+  /** The full typed answer the model self-selected (discriminated on `kind`). */
+  output: ChatOutput
+  /** Convenience: `output.kind`, the chosen answer shape. */
+  kind: OutputShape
+}
+
+/** Wrap a plain-text reply as the fallback ChatOutput so callers always get a typed object. */
+const plainOutput = (spokenAnswer: string): PlainResult => ({
+  output: { kind: 'plain', spokenAnswer },
+  kind: 'plain',
+})
+
+interface PlainResult {
+  output: ChatOutput
+  kind: OutputShape
 }
 
 const toModelMessages = (history: MessageRecord[]): ModelMessage[] =>
@@ -48,10 +67,12 @@ export const runChat = async (
   adapter: ChatDataAdapter,
 ): Promise<RunChatResult> => {
   const mode = resolveMode(input.mode)
+  const shapes = resolveShapes(input.shapes)
   const session = await adapter.getOrCreateSession(input.sessionKey, input.templateKey)
 
   if (session.status === 'blocked') {
-    return { text: 'This conversation has been blocked.', sessionKey: session.sessionKey, blocked: true, mode }
+    const msg = 'This conversation has been blocked.'
+    return { text: msg, sessionKey: session.sessionKey, blocked: true, mode, ...plainOutput(msg) }
   }
 
   const inputGate = runInputGuardrails({ message: input.message, sessionKey: session.sessionKey })
@@ -63,7 +84,8 @@ export const runChat = async (
       guardrailFlags: { stage: 'input', allowed: false, reason: inputGate.reason },
       retrievalMode: mode,
     })
-    return { text: inputGate.reason ?? 'Your message was blocked.', sessionKey: session.sessionKey, blocked: true, mode }
+    const msg = inputGate.reason ?? 'Your message was blocked.'
+    return { text: msg, sessionKey: session.sessionKey, blocked: true, mode, ...plainOutput(msg) }
   }
 
   const [template, history] = await Promise.all([
@@ -80,14 +102,27 @@ export const runChat = async (
     system,
     messages: [...toModelMessages(history), { role: 'user', content: input.message }],
     tools: buildTools(adapter, mode),
-    stopWhen: stepCountIs(3), // let the model: call tool -> read rows -> answer
+    output: buildOutput(shapes), // typed, shape-tagged answer alongside the tool loop
+    stopWhen: stepCountIs(4), // call tool -> read rows -> compose typed answer
   })
 
   const toolCalls = result.steps.flatMap((s) => s.toolCalls ?? [])
   const toolResults = result.steps.flatMap((s) => s.toolResults ?? [])
 
-  const outGate = runOutputGuardrails({ text: result.text })
+  // The model self-selected a shape; every shape carries spokenAnswer. If the model
+  // returned nothing usable, fall back to a plain answer wrapping result.text.
+  const modelOutput = (result.output ?? null) as ChatOutput | null
+  const spoken = modelOutput?.spokenAnswer?.trim() || result.text
+
+  // Guardrails run on the plain-text answer, same as before — shape-agnostic.
+  const outGate = runOutputGuardrails({ text: spoken })
   const finalText = outGate.sanitized?.trim() || FALLBACK
+
+  // Keep output and spokenAnswer in sync after guardrails; fall back to plain if needed.
+  const finalOutput: ChatOutput =
+    modelOutput && (outGate.allowed !== false)
+      ? { ...modelOutput, spokenAnswer: finalText }
+      : { kind: 'plain', spokenAnswer: finalText }
 
   await adapter.saveMessage({
     session: session.id,
@@ -106,5 +141,12 @@ export const runChat = async (
     retrievalMode: mode,
   })
 
-  return { text: finalText, sessionKey: session.sessionKey, blocked: false, mode }
+  return {
+    text: finalText,
+    sessionKey: session.sessionKey,
+    blocked: false,
+    mode,
+    output: finalOutput,
+    kind: finalOutput.kind,
+  }
 }
