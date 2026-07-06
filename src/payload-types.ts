@@ -321,6 +321,22 @@ export interface ChatMessage {
    */
   retrievalMode?: ('db' | 'rag' | 'both') | null;
   /**
+   * Which answer shape the model self-selected (plain|timeline|productList|comparison).
+   */
+  outputShape?: string | null;
+  /**
+   * The full typed answer object the model returned (shape-tagged on `kind`).
+   */
+  structuredOutput?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
    * Token counts from the model call (cost tracking).
    */
   tokenUsage?:
@@ -593,6 +609,8 @@ export interface ChatMessagesSelect<T extends boolean = true> {
   toolResults?: T;
   guardrailFlags?: T;
   retrievalMode?: T;
+  outputShape?: T;
+  structuredOutput?: T;
   tokenUsage?: T;
   updatedAt?: T;
   createdAt?: T;

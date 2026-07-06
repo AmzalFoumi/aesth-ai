@@ -139,6 +139,8 @@ export const runChat = async (
     toolResults: asJson(toolResults),
     tokenUsage: asJson(result.usage),
     retrievalMode: mode,
+    outputShape: finalOutput.kind,
+    structuredOutput: asJson(finalOutput),
   })
 
   return {

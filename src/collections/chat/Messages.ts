@@ -67,6 +67,21 @@ export const Messages: CollectionConfig = {
       admin: { description: 'Which retrieval arm produced this turn — the A/B label.' },
     },
     {
+      name: 'outputShape',
+      type: 'text',
+      index: true,
+      admin: {
+        description: 'Which answer shape the model self-selected (plain|timeline|productList|comparison).',
+      },
+    },
+    {
+      name: 'structuredOutput',
+      type: 'json',
+      admin: {
+        description: 'The full typed answer object the model returned (shape-tagged on `kind`).',
+      },
+    },
+    {
       name: 'tokenUsage',
       type: 'json',
       admin: { description: 'Token counts from the model call (cost tracking).' },

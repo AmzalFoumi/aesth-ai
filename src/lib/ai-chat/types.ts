@@ -66,6 +66,10 @@ export interface NewMessage {
   tokenUsage?: JsonValue
   /** Which retrieval arm produced this turn (db|rag|both) — for A/B auditability. */
   retrievalMode?: RetrievalMode
+  /** Which answer shape the model self-selected for this turn (assistant turns). */
+  outputShape?: OutputShape
+  /** The full typed answer object (shape-tagged on `kind`) — for auditability. */
+  structuredOutput?: JsonValue
 }
 
 // ---------------------------------------------------------------------------
