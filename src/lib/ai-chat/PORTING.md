@@ -29,6 +29,9 @@ and moves without edits.
 | `types.ts` | 🟢 | Shared shapes. Add source types / fields as the target needs (additive). |
 | `index.ts` | 🟢 | Public surface. |
 | `retrieval/mode.ts` | 🟢 | `db`/`rag`/`both` resolver. Env-driven, data-agnostic. |
+| `output/shapes.ts` | 🟢 | Zod schema per answer shape (plain/timeline/productList/comparison) + registry. No payload/DB/SDK. |
+| `output/mode.ts` | 🟢 | `resolveShapes(override?)` — `OUTPUT_SHAPES` env allowlist (mirrors `retrieval/mode.ts`); always forces `plain`. |
+| `output/buildOutput.ts` | 🟢 | `buildOutput(shapes)` → `Output.object(discriminatedUnion(allowed))`. The whole `output/` folder copies untouched. |
 | `vector/VectorStore.ts` | 🟢 | Interface only. |
 | `guardrails/*` | 🟡 | Copies fine; review `inputRules` off-topic/injection wording and rate-limit numbers for the target domain. |
 | `prompts/render.ts` | 🟢 | `{{placeholder}}` substitution. |
@@ -67,14 +70,14 @@ It has two halves that port very differently:
 | File | Class | Notes |
 | --- | --- | --- |
 | `collections/chat/ChatSessions.ts` | 🟢 | Copy; register in the target's `payload.config.ts`. |
-| `collections/chat/Messages.ts` | 🟢 | Copy (incl. the `retrievalMode` field). Register. |
+| `collections/chat/Messages.ts` | 🟢 | Copy (incl. the `retrievalMode`, `outputShape`, `structuredOutput` fields). Register, then regenerate payload-types. |
 | `collections/chat/PromptTemplates.ts` | 🟢 | Copy. Register. Then re-seed a prompt. |
 | `collections/chat/Embeddings.ts` | 🟢 | Copy. Register. Generalized shape already fits products + treatments/posts/pages. |
 | `collections/chat/index.ts` | 🟢 | Barrel — copy. |
 | `seed/seedPrompt.ts` | 🟡 | Copy; **rewrite the prompt text** for the target's domain/brand. |
 | `seed/embed.ts` | 🔴 | **The least portable file.** See below. |
 | `app/chat/route.ts` | 🟢 | HTTP adapter. Copy; only depends on `runChat`. |
-| `app/(frontend)/components/ChatWidget.tsx` | 🟡 | Copy; restyle to the target's design. The `mode` toggle + `body.mode` contract stay. |
+| `app/(frontend)/components/ChatWidget.tsx` | 🔴 | **Host glue.** Copy; restyle to the target's design. The `mode`/`shapes` toggles + `body.mode`/`body.shapes` contract stay, but the `StructuredAnswer` render (timeline/cards/comparison) is per-project UI to rewrite. Its inline `ChatOutput` type mirrors `types.ts`. |
 
 ### `seed/embed.ts` — rewrite the ingestion, keep the skeleton
 
@@ -121,7 +124,10 @@ generalized. To make treatments searchable:
 1. Copy the files per the tables above; register the four chat collections in the
    target `payload.config.ts`.
 2. Set env: `AI_PROVIDER`/`AI_MODEL`, provider API key, `EMBEDDING_*`,
-   `VECTOR_INDEX_NAME`, `RETRIEVAL_MODE`. (See the README config table.)
+   `VECTOR_INDEX_NAME`, `RETRIEVAL_MODE`, `OUTPUT_SHAPES`. (See the README config
+   table.) `OUTPUT_SHAPES` is the answer-shape allowlist (mirrors `RETRIEVAL_MODE`);
+   a prod copy can ship `OUTPUT_SHAPES=plain` to behave exactly like text-only, with
+   zero code change. `plain` is always forced in as the fallback.
 3. Create the Atlas `$vectorSearch` index on `embeddings.vector` — `numDimensions`
    matching `EMBEDDING_DIMS`, `similarity: cosine`, `sourceType` as a filter field —
    named to match `VECTOR_INDEX_NAME`. Wait for status **Active**.
@@ -130,4 +136,10 @@ generalized. To make treatments searchable:
 5. Smoke it: `curl … {"mode":"rag", …}` and confirm `chat-messages.retrievalMode` is
    stamped.
 
-See [README.md](./README.md) for env details and the RAG A/B workflow.
+See [README.md](./README.md) for env details and the RAG A/B workflow, and
+[STRUCTURED-OUTPUT.md](./STRUCTURED-OUTPUT.md) for why route B (self-select) was
+chosen and how the `output/` seam is structured.
+
+> **Hard rule (still holds for the new seam):** nothing in `output/` imports
+> `payload`, the DB, or a provider SDK — it only depends on `ai` (`Output`) and
+> `zod`. That's what lets the whole folder copy over untouched.
