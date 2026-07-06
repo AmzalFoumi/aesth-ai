@@ -116,3 +116,69 @@ export interface SimilarityFilter {
 
 /** Which retrieval path(s) the chatbot exposes for a given request (A/B seam). */
 export type RetrievalMode = 'db' | 'rag' | 'both'
+
+// ---------------------------------------------------------------------------
+// Structured output (Phase 3). Still framework-agnostic — no payload, no SDK.
+// These describe the SHAPE the model's final answer comes back in. The model
+// self-selects one branch (discriminated on `kind`). Every branch carries a
+// `spokenAnswer` string so guardrails, persistence, and text-only clients keep
+// working unchanged. See STRUCTURED-OUTPUT.md.
+// ---------------------------------------------------------------------------
+
+/** Which answer shapes the model may choose from for a given request. */
+export type OutputShape = 'plain' | 'timeline' | 'productList' | 'comparison'
+
+/** A plain prose answer — always available; the graceful fallback. */
+export interface PlainOutput {
+  kind: 'plain'
+  spokenAnswer: string
+}
+
+/** An ordered process/routine — e.g. "how do I treat dry skin?". */
+export interface TimelineOutput {
+  kind: 'timeline'
+  spokenAnswer: string
+  title: string
+  steps: {
+    order: number
+    title: string
+    detail: string
+    /** Optional product names this step references (for linking in the UI). */
+    productRefs?: string[]
+  }[]
+}
+
+/** A set of recommended products — mirrors the lean ProductSummary vocabulary. */
+export interface ProductListOutput {
+  kind: 'productList'
+  spokenAnswer: string
+  intro?: string
+  products: {
+    name: string
+    brand?: string
+    priceRange?: string
+    rating?: number
+    url?: string
+    /** One line on why this product fits the question. */
+    why?: string
+  }[]
+}
+
+/** A side-by-side comparison — e.g. "X vs Y". `items` are the columns. */
+export interface ComparisonOutput {
+  kind: 'comparison'
+  spokenAnswer: string
+  items: string[]
+  rows: {
+    feature: string
+    /** One value per item, in the same order as `items`. */
+    values: string[]
+  }[]
+}
+
+/** The typed object runChat returns as its final answer (discriminated on `kind`). */
+export type ChatOutput =
+  | PlainOutput
+  | TimelineOutput
+  | ProductListOutput
+  | ComparisonOutput
