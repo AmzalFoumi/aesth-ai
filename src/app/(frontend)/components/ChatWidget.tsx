@@ -279,7 +279,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   modeLabel: { fontSize: 11, color: '#888', marginRight: 2 },
   modeBtn: {
-    background: '#fff', color: '#555', border: '1px solid #ddd', borderRadius: 6,
+    background: '#fff', color: '#555', borderWidth: 1, borderStyle: 'solid', borderColor: '#ddd', borderRadius: 6,
     padding: '3px 8px', fontSize: 11, cursor: 'pointer', textTransform: 'uppercase',
   },
   modeBtnActive: { background: '#111', color: '#fff', borderColor: '#111' },
