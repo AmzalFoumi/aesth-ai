@@ -5,7 +5,10 @@ product catalog and grounds every reply in real data. It has **two retrieval
 paths**: exact **database filters** (`queryProducts`) and semantic **RAG**
 (`searchKnowledgeBase` — Gemini embeddings + MongoDB Atlas `$vectorSearch`). A
 per-request **retrieval mode** picks which arm(s) the model may use, so you can
-A/B the two. See [PORTING.md](./PORTING.md) for moving this core into another repo.
+A/B the two. The final answer can also come back as a **typed, shape-tagged object**
+(timeline / product list / comparison / plain) the frontend renders as a real
+component — see [STRUCTURED-OUTPUT.md](./STRUCTURED-OUTPUT.md) for the design and the
+options we weighed. See [PORTING.md](./PORTING.md) for moving this core into another repo.
 
 ## How it fits together
 
