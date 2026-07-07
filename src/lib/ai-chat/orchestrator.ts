@@ -97,22 +97,77 @@ export const runChat = async (
     now: new Date().toISOString(),
   })
 
-  const result = await generateText({
-    model: resolveModel(),
-    system,
-    messages: [...toModelMessages(history), { role: 'user', content: input.message }],
-    tools: buildTools(adapter, mode),
-    output: buildOutput(shapes), // typed, shape-tagged answer alongside the tool loop
-    stopWhen: stepCountIs(4), // call tool -> read rows -> compose typed answer
-  })
+  const messages: ModelMessage[] = [
+    ...toModelMessages(history),
+    { role: 'user', content: input.message },
+  ]
+  const tools = buildTools(adapter, mode)
 
-  const toolCalls = result.steps.flatMap((s) => s.toolCalls ?? [])
-  const toolResults = result.steps.flatMap((s) => s.toolResults ?? [])
+  // The model self-selects a typed shape alongside the tool loop. Lighter models
+  // sometimes emit the raw tool JSON, or no valid object at all — in which case the
+  // AI SDK THROWS (AI_NoObjectGeneratedError from generateText, or the throwing
+  // AI_NoOutputGeneratedError getter on result.output). We never want that to 500
+  // the request: on any structured-output failure we degrade to a plain answer.
+  // `plain` is always the fallback (see STRUCTURED-OUTPUT.md).
+  let text = ''
+  let toolCalls: unknown[] = []
+  let toolResults: unknown[] = []
+  let usage: unknown = undefined
+  let modelOutput: ChatOutput | null = null
 
-  // The model self-selected a shape; every shape carries spokenAnswer. If the model
-  // returned nothing usable, fall back to a plain answer wrapping result.text.
-  const modelOutput = (result.output ?? null) as ChatOutput | null
-  const spoken = modelOutput?.spokenAnswer?.trim() || result.text
+  // A plain (no `output`) generateText run — same tools/context, but the answer
+  // comes back in `result.text`. Used as the fallback whenever the structured run
+  // yields nothing usable, so we never surface an empty answer.
+  const runPlain = async () => {
+    const result = await generateText({
+      model: resolveModel(),
+      system,
+      messages,
+      tools,
+      stopWhen: stepCountIs(4),
+    })
+    text = result.text
+    toolCalls = result.steps.flatMap((s) => s.toolCalls ?? [])
+    toolResults = result.steps.flatMap((s) => s.toolResults ?? [])
+    usage = result.usage
+    modelOutput = null
+  }
+
+  try {
+    const result = await generateText({
+      model: resolveModel(),
+      system,
+      messages,
+      tools,
+      output: buildOutput(shapes), // typed, shape-tagged answer alongside the tool loop
+      stopWhen: stepCountIs(4), // call tool -> read rows -> compose typed answer
+    })
+    text = result.text
+    toolCalls = result.steps.flatMap((s) => s.toolCalls ?? [])
+    toolResults = result.steps.flatMap((s) => s.toolResults ?? [])
+    usage = result.usage
+    // result.output is a getter that THROWS when no valid shape was produced.
+    try {
+      modelOutput = (result.output ?? null) as ChatOutput | null
+    } catch {
+      modelOutput = null
+    }
+
+    // With `output` set, the SDK routes the answer into the object channel, leaving
+    // result.text empty. If the model produced no valid object AND no text, we have
+    // nothing to show — re-run plain so the tool-grounded answer lands in .text.
+    if (!modelOutput?.spokenAnswer?.trim() && !text.trim()) {
+      await runPlain()
+    }
+  } catch {
+    // Structured generation threw (e.g. schema mismatch). Re-run plain so we still
+    // get a grounded answer from the tool loop instead of failing the request.
+    await runPlain()
+  }
+
+  // Every shape carries spokenAnswer; if the model produced no usable shape, fall
+  // back to a plain answer wrapping the plain text.
+  const spoken = modelOutput?.spokenAnswer?.trim() || text
 
   // Guardrails run on the plain-text answer, same as before — shape-agnostic.
   const outGate = runOutputGuardrails({ text: spoken })
@@ -137,7 +192,7 @@ export const runChat = async (
     content: finalText,
     toolCalls: asJson(toolCalls),
     toolResults: asJson(toolResults),
-    tokenUsage: asJson(result.usage),
+    tokenUsage: asJson(usage),
     retrievalMode: mode,
     outputShape: finalOutput.kind,
     structuredOutput: asJson(finalOutput),

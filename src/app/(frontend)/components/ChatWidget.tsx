@@ -31,12 +31,9 @@ type ChatOutput =
 
 type Msg = { role: 'user' | 'assistant'; text: string; output?: ChatOutput }
 type Mode = 'db' | 'rag' | 'both'
-// 'auto' = let the model choose (no shapes override sent). Others force that shape (+plain).
-type ShapeChoice = 'auto' | 'timeline' | 'productList' | 'comparison' | 'plain'
 
 const SESSION_STORAGE_KEY = 'aesth-chat-session'
 const MODES: Mode[] = ['db', 'rag', 'both']
-const SHAPES: ShapeChoice[] = ['auto', 'timeline', 'productList', 'comparison', 'plain']
 
 export const ChatWidget: React.FC = () => {
   const [open, setOpen] = useState(false)
@@ -45,8 +42,6 @@ export const ChatWidget: React.FC = () => {
   const [loading, setLoading] = useState(false)
   // A/B retrieval arm. Sent as `mode` so we can flip db vs rag vs both live.
   const [mode, setMode] = useState<Mode>('db')
-  // Which answer shape to force. 'auto' sends no override (model self-selects).
-  const [shape, setShape] = useState<ShapeChoice>('auto')
   const sessionKey = useRef<string>('')
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -73,13 +68,9 @@ export const ChatWidget: React.FC = () => {
       const res = await fetch('/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        // Only send `shapes` when forcing a shape; 'auto' lets the model self-select.
-        body: JSON.stringify({
-          sessionKey: sessionKey.current,
-          message,
-          mode,
-          ...(shape === 'auto' ? {} : { shapes: shape }),
-        }),
+        // The model always self-selects its answer shape (from OUTPUT_SHAPES); no
+        // per-request override — forcing a shape overwhelmed lighter models.
+        body: JSON.stringify({ sessionKey: sessionKey.current, message, mode }),
       })
       const data = await res.json()
       const text = data.text ?? data.error ?? 'Something went wrong.'
@@ -115,18 +106,6 @@ export const ChatWidget: React.FC = () => {
                 style={{ ...styles.modeBtn, ...(mode === m ? styles.modeBtnActive : {}) }}
               >
                 {m}
-              </button>
-            ))}
-          </div>
-          <div style={styles.modeRow}>
-            <span style={styles.modeLabel}>Shape</span>
-            {SHAPES.map((s) => (
-              <button
-                key={s}
-                onClick={() => setShape(s)}
-                style={{ ...styles.modeBtn, ...(shape === s ? styles.modeBtnActive : {}) }}
-              >
-                {s}
               </button>
             ))}
           </div>
