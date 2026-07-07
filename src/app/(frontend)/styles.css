@@ -235,33 +235,6 @@ img {
   line-height: 1.5;
 }
 
-.starters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  justify-content: center;
-  margin: 6px 0 4px;
-}
-
-.chip {
-  font-family: var(--sans);
-  font-size: 13px;
-  color: var(--ink);
-  background: var(--surface);
-  border: 1px solid var(--hair);
-  border-radius: 999px;
-  padding: 8px 14px;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
-}
-
-.chip:hover,
-.chip:focus-visible {
-  border-color: var(--clay);
-  color: var(--clay);
-  outline: none;
-}
-
 .composer-wrap {
   position: sticky;
   bottom: 0;

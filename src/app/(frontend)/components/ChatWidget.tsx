@@ -37,12 +37,6 @@ type Variant = 'full' | 'widget'
 const SESSION_STORAGE_KEY = 'aesth-chat-session'
 const MODES: Mode[] = ['db', 'rag', 'both']
 
-const STARTERS = [
-  'Gentle cleanser for oily skin',
-  'Build me a nighttime routine',
-  'Vitamin C serum under 300k IDR',
-]
-
 // Deterministic gradient per product, so swatches vary but stay stable across
 // renders. There are no product images in the dataset — this is a decorative tile.
 function swatchStyle(seed: string): React.CSSProperties {
@@ -158,19 +152,10 @@ export const ChatWidget: React.FC<{ variant?: Variant }> = ({ variant = 'widget'
 
         <div className="thread" ref={scrollRef}>
           {empty && (
-            <>
-              <div className="intro">
-                <h1>What are you looking to solve today?</h1>
-                <p>Ask about routines, ingredients, or specific concerns — I&apos;ll recommend from our catalog.</p>
-              </div>
-              <div className="starters">
-                {STARTERS.map((s) => (
-                  <button key={s} className="chip" onClick={() => send(s)}>
-                    {s}
-                  </button>
-                ))}
-              </div>
-            </>
+            <div className="intro">
+              <h1>What are you looking to solve today?</h1>
+              <p>Ask about routines, ingredients, or specific concerns — I&apos;ll recommend from our catalog.</p>
+            </div>
           )}
           {conversation}
         </div>
