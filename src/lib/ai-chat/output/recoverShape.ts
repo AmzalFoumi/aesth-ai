@@ -1,5 +1,44 @@
 import type { ChatOutput, OutputShape } from '../types'
 import { buildShapeSchema } from './buildOutput'
+import { ALL_SHAPES } from './shapes'
+
+/** A field unique to each non-plain shape, used to guess `kind` when it's missing entirely. */
+const SHAPE_SIGNATURE_KEY: Partial<Record<OutputShape, string>> = {
+  timeline: 'steps',
+  productList: 'products',
+  comparison: 'rows',
+}
+
+/**
+ * Models degrade the union into text in several different malformed ways instead of
+ * the flat, `kind`-discriminated object the schema wants:
+ *   - wrapped:      { spokenAnswer, productList: { products: [...] } }
+ *   - wrapped-empty: { spokenAnswer, plain: {} }
+ *   - flat, no kind: { spokenAnswer, products: [...] }
+ * Normalize any of these into a `kind`-tagged flat object so the real validation
+ * below still has a chance to succeed.
+ */
+const flattenWrapper = (parsed: unknown): unknown => {
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return parsed
+  const obj = parsed as Record<string, unknown>
+
+  const wrapperKey = ALL_SHAPES.find(
+    (shape) => typeof obj[shape] === 'object' && obj[shape] !== null && !Array.isArray(obj[shape]),
+  )
+  if (wrapperKey) {
+    const { [wrapperKey]: inner, ...rest } = obj
+    return { ...rest, ...(inner as Record<string, unknown>), kind: wrapperKey }
+  }
+
+  const signatureShape = (Object.entries(SHAPE_SIGNATURE_KEY) as [OutputShape, string][]).find(
+    ([, key]) => Array.isArray(obj[key]),
+  )
+  if (signatureShape) {
+    return { ...obj, kind: signatureShape[0] }
+  }
+
+  return { ...obj, kind: 'plain' }
+}
 
 /**
  * Recover a structured answer shape that a lighter model serialized into plain text
@@ -33,6 +72,10 @@ export const recoverShape = (
     return null
   }
 
-  const result = buildShapeSchema(shapes).safeParse(parsed)
-  return result.success ? result.data : null
+  const schema = buildShapeSchema(shapes)
+  const direct = schema.safeParse(parsed)
+  if (direct.success) return direct.data
+
+  const flattened = schema.safeParse(flattenWrapper(parsed))
+  return flattened.success ? flattened.data : null
 }

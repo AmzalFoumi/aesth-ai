@@ -126,7 +126,13 @@ export const ChatWidget: React.FC<{ variant?: Variant }> = ({ variant = 'widget'
       {loading && (
         <div className="turn turn--assistant">
           <span className="turn__who">Advisor</span>
-          <div className="bubble">…</div>
+          <div className="bubble">
+            <span className="typing" aria-label="Advisor is typing">
+              <span></span>
+              <span></span>
+              <span></span>
+            </span>
+          </div>
         </div>
       )}
     </>
