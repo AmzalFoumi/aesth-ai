@@ -172,9 +172,13 @@ export const runChat = async (
     recoverIntoModelOutput()
 
     // With `output` set, the SDK routes the answer into the object channel, leaving
-    // result.text empty. If the model produced no valid object AND no text, we have
-    // nothing to show — re-run plain so the tool-grounded answer lands in .text.
-    if (!modelOutput?.spokenAnswer?.trim() && !text.trim()) {
+    // result.text empty. A non-plain shape is self-sufficient via its own structural
+    // fields (steps/products/rows) even without spokenAnswer — only `plain` needs its
+    // text to carry any content. If neither is usable, re-run plain so the tool-grounded
+    // answer lands in .text.
+    const hasUsableOutput =
+      modelOutput && (modelOutput.kind !== 'plain' || modelOutput.spokenAnswer?.trim())
+    if (!hasUsableOutput && !text.trim()) {
       await runPlain()
       recoverIntoModelOutput()
     }
@@ -185,13 +189,16 @@ export const runChat = async (
     recoverIntoModelOutput()
   }
 
-  // Every shape carries spokenAnswer; if the model produced no usable shape, fall
-  // back to a plain answer wrapping the plain text.
+  // A non-plain shape is meaningful through its own structural fields even with no
+  // spokenAnswer — only fall back to the generic apology when there's truly nothing
+  // to show (plain kind, or no shape at all).
+  const hasStructuredContent = modelOutput != null && modelOutput.kind !== 'plain'
   const spoken = modelOutput?.spokenAnswer?.trim() || text
 
   // Guardrails run on the plain-text answer, same as before — shape-agnostic.
   const outGate = runOutputGuardrails({ text: spoken })
-  const finalText = outGate.sanitized?.trim() || FALLBACK
+  const sanitized = outGate.sanitized?.trim() ?? ''
+  const finalText = sanitized || (hasStructuredContent ? '' : FALLBACK)
 
   // Keep output and spokenAnswer in sync after guardrails; fall back to plain if needed.
   const finalOutput: ChatOutput =

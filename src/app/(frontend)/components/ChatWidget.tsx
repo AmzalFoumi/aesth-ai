@@ -10,22 +10,22 @@ import React, { useEffect, useRef, useState } from 'react'
 // Mirrors the backend ChatOutput union (src/lib/ai-chat/types.ts). Kept inline so
 // the widget stays HTTP-contract-only and drops into any frontend unchanged.
 type ChatOutput =
-  | { kind: 'plain'; spokenAnswer: string }
+  | { kind: 'plain'; spokenAnswer?: string }
   | {
       kind: 'timeline'
-      spokenAnswer: string
-      title: string
+      spokenAnswer?: string
+      title?: string
       steps: { order: number; title: string; detail: string; productRefs?: string[] }[]
     }
   | {
       kind: 'productList'
-      spokenAnswer: string
+      spokenAnswer?: string
       intro?: string
       products: { name: string; brand?: string; priceRange?: string; rating?: number; url?: string; why?: string }[]
     }
   | {
       kind: 'comparison'
-      spokenAnswer: string
+      spokenAnswer?: string
       items: string[]
       rows: { feature: string; values: string[] }[]
     }
