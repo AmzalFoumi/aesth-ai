@@ -134,6 +134,21 @@ export const runChat = async (
     modelOutput = null
   }
 
+  // Lighter models sometimes serialize the shape object into `text` instead of the
+  // object channel — whether from the structured call or the plain fallback call, since
+  // the system prompt still primes the model to think in shapes either way. Recover it:
+  // parse+validate text against the allowed shapes, and if it's a real shape, promote it
+  // and clear text so the blob never leaks into the answer.
+  const recoverIntoModelOutput = () => {
+    if (!modelOutput && text.trim()) {
+      const recovered = recoverShape(text, shapes)
+      if (recovered) {
+        modelOutput = recovered
+        text = ''
+      }
+    }
+  }
+
   try {
     const result = await generateText({
       model: resolveModel(),
@@ -154,28 +169,20 @@ export const runChat = async (
       modelOutput = null
     }
 
-    // Lighter models sometimes serialize the shape object into result.text instead of
-    // the object channel, so `output` throws (modelOutput null) but text is the JSON
-    // blob. Recover it: parse+validate text against the allowed shapes, and if it's a
-    // real shape, promote it and clear text so the blob never leaks into the answer.
-    if (!modelOutput && text.trim()) {
-      const recovered = recoverShape(text, shapes)
-      if (recovered) {
-        modelOutput = recovered
-        text = ''
-      }
-    }
+    recoverIntoModelOutput()
 
     // With `output` set, the SDK routes the answer into the object channel, leaving
     // result.text empty. If the model produced no valid object AND no text, we have
     // nothing to show — re-run plain so the tool-grounded answer lands in .text.
     if (!modelOutput?.spokenAnswer?.trim() && !text.trim()) {
       await runPlain()
+      recoverIntoModelOutput()
     }
   } catch {
     // Structured generation threw (e.g. schema mismatch). Re-run plain so we still
     // get a grounded answer from the tool loop instead of failing the request.
     await runPlain()
+    recoverIntoModelOutput()
   }
 
   // Every shape carries spokenAnswer; if the model produced no usable shape, fall
