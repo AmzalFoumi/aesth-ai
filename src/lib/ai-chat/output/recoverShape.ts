@@ -41,6 +41,33 @@ const flattenWrapper = (parsed: unknown): unknown => {
 }
 
 /**
+ * Models routinely emit comparison rows as one key per compared item
+ * (`{ feature, "Product A": "x", "Product B": "y" }`) instead of the schema's
+ * `{ feature, values: [...] }`. Rebuild `values` from `items` order whenever a
+ * row is missing it but has per-item keys, so the recognizable-but-malformed
+ * shape still validates instead of leaking as raw JSON.
+ */
+const normalizeComparisonRows = (parsed: unknown): unknown => {
+  if (typeof parsed !== 'object' || parsed === null) return parsed
+  const obj = parsed as Record<string, unknown>
+  if (obj.kind !== 'comparison' && obj.kind !== undefined) return parsed
+  if (!Array.isArray(obj.items) || !Array.isArray(obj.rows)) return parsed
+
+  const items = obj.items as unknown[]
+  const rows = (obj.rows as unknown[]).map((row) => {
+    if (typeof row !== 'object' || row === null || Array.isArray(row)) return row
+    const r = row as Record<string, unknown>
+    if (Array.isArray(r.values)) return r
+    const values = items.map((item) => {
+      const v = r[String(item)]
+      return typeof v === 'string' ? v : v != null ? String(v) : ''
+    })
+    return { feature: r.feature, values }
+  })
+  return { ...obj, rows }
+}
+
+/**
  * Recover a structured answer shape that a lighter model serialized into plain text
  * instead of routing through the AI SDK object channel. Returns the typed ChatOutput
  * when `text` parses and validates against the allowed shape union, else null.
@@ -73,9 +100,9 @@ export const recoverShape = (
   }
 
   const schema = buildShapeSchema(shapes)
-  const direct = schema.safeParse(parsed)
+  const direct = schema.safeParse(normalizeComparisonRows(parsed))
   if (direct.success) return direct.data
 
-  const flattened = schema.safeParse(flattenWrapper(parsed))
+  const flattened = schema.safeParse(normalizeComparisonRows(flattenWrapper(parsed)))
   return flattened.success ? flattened.data : null
 }
