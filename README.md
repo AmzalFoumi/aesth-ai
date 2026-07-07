@@ -1,8 +1,8 @@
 # Aesth-ai
 
-A proof-of-concept AI chatbot for an aesthetic-clinic site, built to validate the retrieval approach before porting the core into the production CMS. It runs on **Payload 3 + MongoDB** with a dummy beauty-product dataset from Kaggle, and answers product questions through two different retrieval paths that the model chooses between per question.
+A proof-of-concept AI chatbot for an aesthetic-clinic site, built to validate the retrieval approach before porting the core into the production codebase. It runs on **Payload 3 + MongoDB** with a dummy beauty-product dataset from Kaggle, and answers product questions through two different retrieval paths that the model chooses between per question.
 
-The reusable chatbot engine lives in [`src/lib/ai-chat/`](src/lib/ai-chat/) and is deliberately decoupled from this repo's data model — see the [docs](#architecture--further-reading) below for how it's meant to be lifted into another project.
+The reusable chatbot core lives in [`src/lib/ai-chat/`](src/lib/ai-chat/) and is deliberately decoupled from this repo's data model — see the [docs](#architecture--further-reading) below for how it's meant to be lifted into another project.
 
 ---
 
@@ -52,8 +52,6 @@ This project uses **npm**.
    ```
 
 3. Open `http://localhost:3000` and follow the prompt to create your first admin user.
-
-> **Docker (optional):** a `docker-compose.yml` is included if you'd rather run MongoDB locally in a container — point `DATABASE_URL` at `mongodb://127.0.0.1/<dbname>` and `docker-compose up`.
 
 ### Seed data & embeddings
 
