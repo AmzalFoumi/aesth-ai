@@ -6,6 +6,7 @@ import { buildTools } from './tools'
 import { resolveMode } from './retrieval/mode'
 import { resolveShapes } from './output/mode'
 import { buildOutput } from './output/buildOutput'
+import { recoverShape } from './output/recoverShape'
 import { renderTemplate } from './prompts/render'
 import { runInputGuardrails, runOutputGuardrails } from './guardrails'
 
@@ -133,6 +134,21 @@ export const runChat = async (
     modelOutput = null
   }
 
+  // Lighter models sometimes serialize the shape object into `text` instead of the
+  // object channel — whether from the structured call or the plain fallback call, since
+  // the system prompt still primes the model to think in shapes either way. Recover it:
+  // parse+validate text against the allowed shapes, and if it's a real shape, promote it
+  // and clear text so the blob never leaks into the answer.
+  const recoverIntoModelOutput = () => {
+    if (!modelOutput && text.trim()) {
+      const recovered = recoverShape(text, shapes)
+      if (recovered) {
+        modelOutput = recovered
+        text = ''
+      }
+    }
+  }
+
   try {
     const result = await generateText({
       model: resolveModel(),
@@ -153,25 +169,36 @@ export const runChat = async (
       modelOutput = null
     }
 
+    recoverIntoModelOutput()
+
     // With `output` set, the SDK routes the answer into the object channel, leaving
-    // result.text empty. If the model produced no valid object AND no text, we have
-    // nothing to show — re-run plain so the tool-grounded answer lands in .text.
-    if (!modelOutput?.spokenAnswer?.trim() && !text.trim()) {
+    // result.text empty. A non-plain shape is self-sufficient via its own structural
+    // fields (steps/products/rows) even without spokenAnswer — only `plain` needs its
+    // text to carry any content. If neither is usable, re-run plain so the tool-grounded
+    // answer lands in .text.
+    const hasUsableOutput =
+      modelOutput && (modelOutput.kind !== 'plain' || modelOutput.spokenAnswer?.trim())
+    if (!hasUsableOutput && !text.trim()) {
       await runPlain()
+      recoverIntoModelOutput()
     }
   } catch {
     // Structured generation threw (e.g. schema mismatch). Re-run plain so we still
     // get a grounded answer from the tool loop instead of failing the request.
     await runPlain()
+    recoverIntoModelOutput()
   }
 
-  // Every shape carries spokenAnswer; if the model produced no usable shape, fall
-  // back to a plain answer wrapping the plain text.
+  // A non-plain shape is meaningful through its own structural fields even with no
+  // spokenAnswer — only fall back to the generic apology when there's truly nothing
+  // to show (plain kind, or no shape at all).
+  const hasStructuredContent = modelOutput != null && modelOutput.kind !== 'plain'
   const spoken = modelOutput?.spokenAnswer?.trim() || text
 
   // Guardrails run on the plain-text answer, same as before — shape-agnostic.
   const outGate = runOutputGuardrails({ text: spoken })
-  const finalText = outGate.sanitized?.trim() || FALLBACK
+  const sanitized = outGate.sanitized?.trim() ?? ''
+  const finalText = sanitized || (hasStructuredContent ? '' : FALLBACK)
 
   // Keep output and spokenAnswer in sync after guardrails; fall back to plain if needed.
   const finalOutput: ChatOutput =

@@ -53,6 +53,7 @@ node_modules/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+.playwright-mcp
 
 # personal Claude Code overrides
 .claude/settings.local.json

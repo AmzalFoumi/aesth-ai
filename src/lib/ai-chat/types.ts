@@ -135,14 +135,14 @@ export type OutputShape = 'plain' | 'timeline' | 'productList' | 'comparison'
 /** A plain prose answer — always available; the graceful fallback. */
 export interface PlainOutput {
   kind: 'plain'
-  spokenAnswer: string
+  spokenAnswer?: string
 }
 
 /** An ordered process/routine — e.g. "how do I treat dry skin?". */
 export interface TimelineOutput {
   kind: 'timeline'
-  spokenAnswer: string
-  title: string
+  spokenAnswer?: string
+  title?: string
   steps: {
     order: number
     title: string
@@ -155,7 +155,7 @@ export interface TimelineOutput {
 /** A set of recommended products — mirrors the lean ProductSummary vocabulary. */
 export interface ProductListOutput {
   kind: 'productList'
-  spokenAnswer: string
+  spokenAnswer?: string
   intro?: string
   products: {
     name: string
@@ -171,7 +171,7 @@ export interface ProductListOutput {
 /** A side-by-side comparison — e.g. "X vs Y". `items` are the columns. */
 export interface ComparisonOutput {
   kind: 'comparison'
-  spokenAnswer: string
+  spokenAnswer?: string
   items: string[]
   rows: {
     feature: string

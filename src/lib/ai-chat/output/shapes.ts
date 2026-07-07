@@ -14,8 +14,9 @@ import type { OutputShape } from '../types'
 
 const spokenAnswer = z
   .string()
+  .optional()
   .describe(
-    'The full answer in plain, friendly prose. Always fill this in — it is what non-structured clients show and what safety checks run on.',
+    'The full answer in plain, friendly prose. Fill this in when it adds something the structured fields don\'t already say — it is what non-structured clients show and what safety checks run on.',
   )
 
 /** Plain prose — always available; the fallback when no richer shape fits. */
@@ -28,7 +29,10 @@ export const plainSchema = z.object({
 export const timelineSchema = z.object({
   kind: z.literal('timeline'),
   spokenAnswer,
-  title: z.string().describe('A short title for the process, e.g. "Routine for dry skin".'),
+  title: z
+    .string()
+    .optional()
+    .describe('Optional short title for the process, e.g. "Routine for dry skin".'),
   steps: z
     .array(
       z.object({

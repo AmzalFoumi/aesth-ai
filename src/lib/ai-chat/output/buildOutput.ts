@@ -14,7 +14,14 @@ import { resolveShapes } from './mode'
  * returns. Accepts either an already-resolved shape list or a raw override (which it
  * resolves), so callers can pass `input.shapes` straight through.
  */
-export const buildOutput = (shapesOrOverride?: OutputShape[] | unknown) => {
+/**
+ * The Zod schema for the allowed answer shapes — a single schema when one shape is
+ * allowed, or a discriminated union when several are. Shared source of truth for both
+ * the generateText `output` spec (below) and text→shape recovery (recoverShape.ts).
+ */
+export const buildShapeSchema = (
+  shapesOrOverride?: OutputShape[] | unknown,
+): z.ZodType<ChatOutput> => {
   const shapes: OutputShape[] = Array.isArray(shapesOrOverride)
     ? (shapesOrOverride as OutputShape[])
     : resolveShapes(shapesOrOverride)
@@ -30,5 +37,8 @@ export const buildOutput = (shapesOrOverride?: OutputShape[] | unknown) => {
           branches as [(typeof branches)[number], ...(typeof branches)[number][]],
         )
 
-  return Output.object({ schema: schema as z.ZodType<ChatOutput> })
+  return schema as z.ZodType<ChatOutput>
 }
+
+export const buildOutput = (shapesOrOverride?: OutputShape[] | unknown) =>
+  Output.object({ schema: buildShapeSchema(shapesOrOverride) })
