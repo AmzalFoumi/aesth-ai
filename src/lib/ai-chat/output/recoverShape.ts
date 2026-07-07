@@ -41,6 +41,21 @@ const flattenWrapper = (parsed: unknown): unknown => {
 }
 
 /**
+ * Patch obviously-missing, harmless fields with safe defaults before validating, so a
+ * blob that's structurally the right shape but missing a cosmetic field (most commonly
+ * `spokenAnswer`, which lighter models sometimes drop when they're focused on the shape's
+ * own fields) still recovers instead of leaking. Never touches shape-defining fields
+ * (`steps`/`products`/`rows`/`items`) — if those are missing, the blob genuinely isn't
+ * recoverable and should still fall through to plain text.
+ */
+const fillDefaults = (parsed: unknown): unknown => {
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return parsed
+  const obj = parsed as Record<string, unknown>
+  if (typeof obj.spokenAnswer === 'string') return obj
+  return { ...obj, spokenAnswer: '' }
+}
+
+/**
  * Recover a structured answer shape that a lighter model serialized into plain text
  * instead of routing through the AI SDK object channel. Returns the typed ChatOutput
  * when `text` parses and validates against the allowed shape union, else null.
@@ -73,9 +88,9 @@ export const recoverShape = (
   }
 
   const schema = buildShapeSchema(shapes)
-  const direct = schema.safeParse(parsed)
+  const direct = schema.safeParse(fillDefaults(parsed))
   if (direct.success) return direct.data
 
-  const flattened = schema.safeParse(flattenWrapper(parsed))
+  const flattened = schema.safeParse(fillDefaults(flattenWrapper(parsed)))
   return flattened.success ? flattened.data : null
 }
