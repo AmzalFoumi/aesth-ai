@@ -6,6 +6,7 @@ import { buildTools } from './tools'
 import { resolveMode } from './retrieval/mode'
 import { resolveShapes } from './output/mode'
 import { buildOutput } from './output/buildOutput'
+import { recoverShape } from './output/recoverShape'
 import { renderTemplate } from './prompts/render'
 import { runInputGuardrails, runOutputGuardrails } from './guardrails'
 
@@ -151,6 +152,18 @@ export const runChat = async (
       modelOutput = (result.output ?? null) as ChatOutput | null
     } catch {
       modelOutput = null
+    }
+
+    // Lighter models sometimes serialize the shape object into result.text instead of
+    // the object channel, so `output` throws (modelOutput null) but text is the JSON
+    // blob. Recover it: parse+validate text against the allowed shapes, and if it's a
+    // real shape, promote it and clear text so the blob never leaks into the answer.
+    if (!modelOutput && text.trim()) {
+      const recovered = recoverShape(text, shapes)
+      if (recovered) {
+        modelOutput = recovered
+        text = ''
+      }
     }
 
     // With `output` set, the SDK routes the answer into the object channel, leaving
