@@ -65,6 +65,37 @@ It has two halves that port very differently:
 
 ---
 
+## Packages the core needs
+
+Install these in the **backend repo** (the core lives there). Versions are what
+this repo ships — match major versions; the AI SDK v7 / Zod v4 pairing matters.
+
+| Package | Version | Used by | Notes |
+| --- | --- | --- | --- |
+| `ai` | `^7.0.15` | orchestrator, `output/`, `tools/`, providers | Vercel AI SDK. `generateText`, `stepCountIs`, `Output`, `tool`, `embed`, `ToolSet`, `LanguageModel`, `EmbeddingModel`. |
+| `zod` | `^4.4.3` | `output/shapes.ts`, every tool schema | Must be v4 — AI SDK v7 pairs with Zod v4. |
+| `payload` | `3.85.2` | `data/payloadChatAdapter.ts`, smoke tests | Already present in a Payload target; only the adapter + dev scripts import it. |
+| `@ai-sdk/google` | `^4.0.8` | `providers/resolveModel.ts`, `resolveEmbeddingModel.ts` | Default provider **and** the only embedding provider wired in. Needed even if chat uses another provider, unless you rewrite `resolveEmbeddingModel`. |
+| `@ai-sdk/anthropic` | `^4.0.8` | `providers/resolveModel.ts` | Only if `AI_PROVIDER=anthropic`. Drop the import + case otherwise. |
+| `@ai-sdk/openai` | `^4.0.7` | `providers/resolveModel.ts` | Only if `AI_PROVIDER=openai`. Drop the import + case otherwise. |
+
+Notes:
+- **Provider packages are pay-for-what-you-use.** `resolveModel.ts` statically
+  imports all three (`google`/`anthropic`/`openai`); if the target only uses one,
+  delete the other two imports and their `switch` cases so you don't install
+  unused SDKs.
+- **On Vercel, consider the AI Gateway instead** of provider-specific packages —
+  plain `"provider/model"` strings through the gateway drop the `@ai-sdk/*`
+  dependencies entirely. That's a `resolveModel.ts` rewrite, not a core change.
+- **No package needed for the vector store** — `payloadChatAdapter` talks to Mongo
+  through `payload.db.connection` (the driver Payload already bundles). A Postgres
+  or external vector DB target adds its own client here.
+- The **frontend repo** needs none of these — `ChatWidget.tsx` only does `fetch`.
+  If you publish the core as a shared package to fix type drift, `types.ts` pulls
+  in nothing runtime-heavy (it's types + a couple of `ai`/`zod` re-exports).
+
+---
+
 ## Two-repo split (headless Payload backend + separate Next.js frontend)
 
 This doc's tables assume one combined Payload+Next repo. The prod target splits
