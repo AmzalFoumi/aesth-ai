@@ -65,6 +65,34 @@ It has two halves that port very differently:
 
 ---
 
+## Two-repo split (headless Payload backend + separate Next.js frontend)
+
+This doc's tables assume one combined Payload+Next repo. The prod target splits
+those into **two repos**, and the boundary cuts through the host-app layer. Place
+the pieces accordingly:
+
+**Backend repo (headless Payload CMS)** — nearly everything lives here:
+- The entire core folder (`src/lib/ai-chat/`).
+- The four chat collections + `seed/` scripts.
+- **The HTTP endpoint.** There is no Next `app/` router here, so
+  `app/chat/route.ts` does **not** copy as-is. Re-expose `runChat` as a **Payload
+  custom endpoint** (root `endpoints` in `payload.config.ts`, or a collection
+  endpoint) instead of a Next route handler. Same body contract
+  (`{mode, shapes, ...}`), different host mechanism. This is the one structural
+  rewrite the file-by-file tables don't capture.
+
+**Frontend repo (Next.js reading from the CMS)** — UI only:
+- `ChatWidget.tsx` (already 🔴). It now calls the backend **over the network**, not
+  a same-origin `/chat` route: swap the fetch URL for the CMS's public endpoint.
+- **CORS:** allowlist the frontend origin on the Payload side (`cors` in
+  `payload.config.ts`) and handle auth if the endpoint isn't public.
+- **Shared type drift:** `ChatWidget`'s inline `ChatOutput` mirrors `types.ts`.
+  Across two repos those two copies drift. Decide up front: publish the core as a
+  shared npm package (single source of truth), or accept the duplication and keep
+  the frontend type hand-synced to `types.ts`.
+
+---
+
 ## Host-app files (NOT in the core, but needed)
 
 | File | Class | Notes |
